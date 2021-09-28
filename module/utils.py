@@ -38,11 +38,12 @@ def asynciotask_handler(task: asyncio.Task) -> None:
     except Exception as err:
         logger.exception(f"Exception raised by task '{task.get_name()}'")
 
-async def _es_gendata(results: list) -> Generator[dict, None, None]:
+async def _es_gendata(results: list[dict]) -> Generator[dict, None, None]:
     for res in results:
         yield {
             "_index": config.es.index,
-            "doc": res
+            "_type": "_doc",
+            **res
         }
 
 async def es_bulk(es: AsyncElasticsearch, results: list) -> None:
