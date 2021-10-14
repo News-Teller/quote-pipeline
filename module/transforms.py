@@ -1,8 +1,9 @@
 import re
-from typing import Iterable, Union
-import spacy
+from typing import Union
 import fasttext
 from .config import config
+
+BLACKLIST = {'covid', 'covid-19'}
 
 
 class Quote:
@@ -58,6 +59,9 @@ class QuotesExtract():
         org = []
         loc = []
         for e in doc.ents:
+            if e.text.lower() in BLACKLIST:
+                continue
+
             entity = Entity(e.text, e.start_char, e.end_char, self.get_paragraph_id(e.start_char, e.end_char, e.text, text))
             if e.label_ == "PER":
                 per.append(entity)
