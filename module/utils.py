@@ -1,7 +1,9 @@
 import asyncio
-from typing import Generator
+from typing import Generator, Union
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.helpers import async_bulk
+from datetime import datetime
+import dateparser
 from .config import config
 import logging
 
@@ -42,7 +44,7 @@ async def _es_gendata(results: list[dict]) -> Generator[dict, None, None]:
     for res in results:
         yield {
             "_index": config.es.index,
-            "_type": "_doc",
+            # "_type": "_doc",
             **res
         }
 
@@ -54,3 +56,6 @@ async def es_bulk(es: AsyncElasticsearch, results: list) -> None:
 
     if errors:
         logger.error(f"ES bulk index error: {errors}")
+
+def convert_datetime(date: str) -> Union[datetime, None]:
+    return dateparser.parse(date)

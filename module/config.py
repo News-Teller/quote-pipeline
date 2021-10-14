@@ -16,6 +16,7 @@ core = Bunch()
 core.spacy_model = "fr_core_news_lg"
 core.fasttext_path = "model.bin"
 core.max_char = 1000
+core.n_keyphrases = int(os.getenv("N_KEYPHRASES", "10"))
 
 kafka = Bunch()
 kafka.bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

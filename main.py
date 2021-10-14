@@ -3,6 +3,7 @@ import asyncio
 from aiokafka import AIOKafkaConsumer
 from elasticsearch import AsyncElasticsearch
 from module import *
+from module import keyphrases
 
 async def kafka_handler(queue: asyncio.Queue) -> None:
     """Consume from a Kafka topic and push the messages
@@ -51,8 +52,10 @@ async def processing(queue: asyncio.Queue, results: Storage) -> None:
     logger.info("Processing: start")
 
     # Instanciate models
-    qa = QuotesExtract()
+    qa = QuotesExtract(spacy_model)
     ft = FastText()
+    kp = KeyphrasesExtract(spacy_model)
+
     logger.info("Processing: ready")
 
     while True:
@@ -60,21 +63,26 @@ async def processing(queue: asyncio.Queue, results: Storage) -> None:
         a_id = article["submission_id"]
         text = article["text"].replace("\n", " ")
         
-        logger.info("Processing: get article %s" % a_id)
+        logger.debug("Processing: get article %s" % a_id)
 
         quotes = qa(text)
 
         if not quotes:
-            logger.info("Processing: no quotes, skipping")
+            logger.debug("Processing: no quotes, skipping")
 
         else: 
+            logger.debug("Processing: found %d quotes" % len(quotes))
+
             label = ft(text)
-            logger.info("Processing: found %d quotes; class: %s" % (len(quotes), label))
+            keyphrases = kp(text)
                 
             for quote, speaker in quotes:          
                 results.append({
                     "article_id": a_id,
-                    "lang": article["lang"],
+                    "article_url": article["url"],
+                    "article_publish_datetime": convert_datetime(article["publish_datetime"]),
+                    "article_text": article["text"],
+                    "article_keyphrases": keyphrases,
                     "quote": quote,
                     "speaker": speaker,
                     "classification": label

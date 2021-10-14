@@ -27,9 +27,10 @@ class Entity:
 
 
 class QuotesExtract():
-    def __init__(self):
-        self.model = spacy.load(config.core.spacy_model,
-                                disable=['parser', 'tagger', 'textcat'])
+    _spacy_components = "ner"
+
+    def __init__(self, spacy_model):
+        self.model = spacy_model
         self.pattern = "[\"|«|”|“][(\.\'\;\,\’)\w\s*]+[\"|»|”|“]"
         
         self.paragraph_sep = "%paragraphs%|\n\n"
@@ -46,7 +47,9 @@ class QuotesExtract():
     
     def get_all_entities(self, text: str) -> Union[tuple[set[Entity], set[Entity], set[Entity]], tuple[None, None, None]]:
         doc = None
-        doc = self.model(text)
+
+        with self.model.select_pipes(enable=self._spacy_components):
+            doc = self.model(text)
 
         if doc == None:
             return (None, None, None)
@@ -102,13 +105,36 @@ class QuotesExtract():
         associated_quotes = self.associate_quote_speaker(x,quotes,pers)
         
         # convert objects to strings
-        associated_quotes = [[q.text, s.name] for q,s in associated_quotes if s != None]
-
+        name_mapping = QuotesExtract._clean_speaker_names([s.name for s in pers])
+        associated_quotes = [[q.text, name_mapping[s.name]] for q,s in associated_quotes if s != None]
+        
         return associated_quotes
 
     def __call__(self, x: str) -> list[tuple[Quote, Entity]]:
         return self.transform(x)
-    
+
+    @staticmethod
+    def _clean_speaker_names(speakers: list) -> Union[dict, None]:
+        if len(speakers) == 0:
+            return {}
+        elif len(speakers) == 1:
+            return { speakers[0]: speakers[0]}
+
+        mapping = {}
+        for p1 in speakers:
+            added = False
+            for p2 in speakers:
+                if p1.lower() == p2.lower():
+                    continue
+                if p1.lower() in p2.lower():
+                    mapping[p1] = p2
+                    added = True
+            
+            if not added:
+                mapping[p1] = p1
+        
+        return mapping
+
     
 class FastText():
     def __init__(self):
@@ -118,6 +144,7 @@ class FastText():
     def transform(self, x: str) -> str:
         label = self.model.predict(x[:self.max_char])
         
+        # Original label is like '__label__climat'
         return label[0][0][9:]
             
     def __call__(self, x: str) -> str:
