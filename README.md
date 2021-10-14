@@ -30,3 +30,11 @@ docker run -d \
 ```
 
 Docker image is also available at [`lsirepfl/quote-pipeline`](https://hub.docker.com/r/lsirepfl/quote-pipeline).
+
+## Elasticsearch
+
+An explicit mapping for the output index is provided in `mapping.sh`.
+
+```bash
+ES_HOST="elasticsearch-ip:9200" INDEX="index-name" bash mapping.sh  
+```
