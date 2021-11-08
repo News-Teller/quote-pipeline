@@ -61,7 +61,7 @@ async def processing(queue: asyncio.Queue, results: Storage) -> None:
     while True:
         article = await queue.get()
         a_id = article["submission_id"]
-        text = article["text"].replace("\n", " ")
+        text = article["text"]
         
         logger.debug("Processing: get article %s" % a_id)
 

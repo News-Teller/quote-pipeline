@@ -1,6 +1,7 @@
 import re
 from typing import Union
 import fasttext
+
 from .config import config
 
 BLACKLIST = {'covid', 'covid-19'}
@@ -11,8 +12,24 @@ class Quote:
         self.text = text
         self.start = start
         self.end = end
-        
-    def  __repr__(self) -> str:
+
+    def strip(self) -> None:
+        """Strip quote text and update start and end positions."""
+        # whitespaces on the left
+        length = len(self.text)
+        self.text = self.text.lstrip()
+        self.start += length - len(self.text)
+
+        # whitespaces on the right
+        length = len(self.text)
+        self.text = self.text.rstrip()
+        self.end -= length - len(self.text)
+
+    @staticmethod
+    def is_valid(quote: object, n_words: int = 5) -> bool:
+        return len(quote.text.split(" ")) >= n_words
+
+    def  __str__(self) -> str:
         return self.text
 
 
@@ -23,7 +40,7 @@ class Entity:
         self.end = end
         self.paragraph_id = paragraph_id
 
-    def  __repr__(self) -> str:
+    def  __str__(self) -> str:
         return self.name
 
 
@@ -32,20 +49,57 @@ class QuotesExtract():
 
     def __init__(self, spacy_model):
         self.model = spacy_model
-        self.pattern = "[\"|«|”|“][(\.\'\;\,\’)\w\s*]+[\"|»|”|“]"
-        
         self.paragraph_sep = "%paragraphs%|\n\n"
         
     def extract_quotes(self, text: str) -> list[Quote]:
-        quotes = re.finditer(self.pattern, text)
-        valid_quotes = []
-        for q in quotes:
-            quote = Quote(q.group(), q.start(), q.end())
-            is_valid_quote = len(quote.text.split(" ")) >= 5
-            if is_valid_quote:
-                valid_quotes.append(quote)
-        return valid_quotes
-    
+        """Extract quotes from a text by looping on every char,
+        start building a quote when an opening mark is found,
+        close when the matching closing mark is found.
+
+        While slower than a regex-based approach, this should be
+        more accurate.
+        """
+        opening = '"«”“'
+        closing = '"»“”'
+        mapping = dict(zip(opening, closing))
+
+        end_char = None
+        building = False
+        start_pos = -1
+
+        quotes = []
+        for pos, char in enumerate(text):
+            # found an opening mark, start building a quote 
+            if (not building) and (char in opening):
+                start_pos = pos
+                end_char = mapping[char]
+                building = True
+
+            # found matching closing mark, close quote
+            elif building and (char == end_char):
+                q = Quote(text[start_pos+1:pos], start_pos+1, pos-1)
+                q.strip()
+
+                if Quote.is_valid(q):
+                    quotes.append(q)
+
+                building = False
+                end_char = None
+
+            # edge case: sometimes quote ends with the paragraph
+            elif building and (char == '\n'):
+                if (len(text) >= pos+3) and (text[pos+1] == '\n') and (text[pos+2] in opening):
+                    q = Quote(text[start_pos+1:pos], start_pos+1, pos-1)
+                    q.strip()
+                    
+                    if Quote.is_valid(q):
+                        quotes.append(q)
+
+                    building = False
+                    end_char = None
+
+        return quotes
+
     def get_all_entities(self, text: str) -> Union[tuple[set[Entity], set[Entity], set[Entity]], tuple[None, None, None]]:
         doc = None
 
@@ -146,7 +200,8 @@ class FastText():
         self.model = fasttext.load_model(config.core.fasttext_path)
 
     def transform(self, x: str) -> str:
-        label = self.model.predict(x[:self.max_char])
+        text = x.replace("\n", " ")
+        label = self.model.predict(text[:self.max_char])
         
         # Original label is like '__label__climat'
         return label[0][0][9:]
